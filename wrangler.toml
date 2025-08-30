@@ -13,3 +13,6 @@ new_sqlite_classes = ["PlaywrightMCP"]
 [[durable_objects.bindings]]
 name = "MCP_OBJECT"
 class_name = "PlaywrightMCP"
+
+[ai]
+binding = "AI"
