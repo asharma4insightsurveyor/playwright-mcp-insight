@@ -4,34 +4,46 @@ import { createMcpAgent } from "@cloudflare/playwright-mcp";
 
 /**
  * Adds:
- *  - GET  /health          → quick 200 check
- *  - POST /sse             → single-call streaming (Playground-style)
+ *  - GET  /health           → quick 200 check
+ *  - POST /sse              → single-call streaming (Playground-style)
  * Keeps:
  *  - GET  /sse, /sse/message → MCP SSE transport (for MCP clients)
  *  - ANY  /mcp               → MCP HTTP transport
  */
 
 export interface Env {
-  AI: any;                          // from [ai] binding
-  BROWSER: any;                     // from [browser] binding
+  AI: any;                          // from [ai] binding in wrangler.toml
+  BROWSER: any;                     // from [browser] binding in wrangler.toml
   MCP_OBJECT: DurableObjectNamespace;
 }
 
 export const PlaywrightMCP = createMcpAgent(env.BROWSER);
+
+// tiny helper so TS stops complaining about unknown
+async function readJson<T = any>(req: Request): Promise<T> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return (await req.json()) as T;
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return {} as T;
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    // --- health/version for sanity ---
+    // --- health for sanity ---
     if (request.method === "GET" && pathname === "/health") {
       return new Response("ok", { status: 200 });
     }
 
     // --- NEW: one-shot streaming like Playground (so curl works) ---
     if (request.method === "POST" && pathname === "/sse") {
-      const body = await request.json().catch(() => ({} as any));
+      const body: any = await readJson(request); // <— cast to any
+
       const messages =
         body?.messages ?? [{ role: "user", content: body?.prompt ?? "" }];
       const model =
