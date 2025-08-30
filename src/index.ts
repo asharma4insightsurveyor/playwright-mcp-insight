@@ -1,5 +1,21 @@
+// src/index.ts
 import { env } from "cloudflare:workers";
 import { createMcpAgent } from "@cloudflare/playwright-mcp";
+
+/**
+ * Adds:
+ *  - GET  /health          → quick 200 check
+ *  - POST /sse             → single-call streaming (Playground-style)
+ * Keeps:
+ *  - GET  /sse, /sse/message → MCP SSE transport (for MCP clients)
+ *  - ANY  /mcp               → MCP HTTP transport
+ */
+
+export interface Env {
+  AI: any;                          // from [ai] binding
+  BROWSER: any;                     // from [browser] binding
+  MCP_OBJECT: DurableObjectNamespace;
+}
 
 export const PlaywrightMCP = createMcpAgent(env.BROWSER);
 
@@ -8,15 +24,12 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    // 🔎 Quick sanity endpoints
+    // --- health/version for sanity ---
     if (request.method === "GET" && pathname === "/health") {
       return new Response("ok", { status: 200 });
     }
-    if (request.method === "GET" && pathname === "/version") {
-      return new Response(process.env.GIT_COMMIT || "local", { status: 200 });
-    }
 
-    // ✅ NEW: one-shot Playground-style POST /sse
+    // --- NEW: one-shot streaming like Playground (so curl works) ---
     if (request.method === "POST" && pathname === "/sse") {
       const body = await request.json().catch(() => ({} as any));
       const messages =
@@ -32,7 +45,7 @@ export default {
       });
     }
 
-    // Existing MCP routes
+    // --- existing MCP endpoints (unchanged) ---
     switch (pathname) {
       case "/sse":
       case "/sse/message":
